@@ -10,12 +10,19 @@
   body { background: #0d0d10; color: #d8d8dc; font-family: system-ui, -apple-system, sans-serif; }
   #app { display: flex; height: 100%; }
   #scene { flex: 1; min-width: 0; position: relative; }
+  #title {
+    position: absolute; top: 12px; left: 0; right: 0;
+    text-align: center; pointer-events: none;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+  }
+  #title h1 { font-size: 34px; letter-spacing: 0.02em; color: #f2f2f5; }
+  #title h2 { font-size: 17px; font-weight: 400; color: #b8b8c2; margin-top: 2px; }
   #colorpath {
-    position: absolute; top: 10px; left: 10px; width: 140px; height: 140px;
+    position: absolute; top: 96px; left: 10px; width: 140px; height: 140px;
     pointer-events: none;
   }
   #rgbpath {
-    position: absolute; top: 160px; left: 10px; width: 140px; height: 140px;
+    position: absolute; top: 246px; left: 10px; width: 140px; height: 140px;
     pointer-events: none;
   }
   #legend {
@@ -49,7 +56,7 @@
 </head>
 <body>
 <div id="app">
-  <div id="scene"><canvas id="colorpath" width="280" height="280"></canvas><canvas id="rgbpath" width="280" height="280"></canvas><div id="legend"></div></div>
+  <div id="scene"><div id="title"><h1>Prado 22 (m&amp;m)</h1><h2>Lighting Simulator</h2></div><canvas id="colorpath" width="280" height="280"></canvas><canvas id="rgbpath" width="280" height="280"></canvas><div id="legend"></div></div>
   <div id="panel">
     <h1>simSphere</h1>
     <p class="sub">Stone sphere lit by four rainbow-cycling spotlights (A–D, clockwise). Drag to orbit, scroll to zoom. Click the scene or press P to pause/resume the color cycling.</p>
