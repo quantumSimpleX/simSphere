@@ -14,6 +14,10 @@
     position: absolute; top: 10px; left: 10px; width: 140px; height: 140px;
     pointer-events: none;
   }
+  #rgbpath {
+    position: absolute; top: 160px; left: 10px; width: 140px; height: 140px;
+    pointer-events: none;
+  }
   #scene canvas { display: block; }
   #panel {
     width: 300px; flex: none; overflow-y: auto; padding: 16px;
@@ -38,7 +42,7 @@
 </head>
 <body>
 <div id="app">
-  <div id="scene"><canvas id="colorpath" width="280" height="280"></canvas></div>
+  <div id="scene"><canvas id="colorpath" width="280" height="280"></canvas><canvas id="rgbpath" width="280" height="280"></canvas></div>
   <div id="panel">
     <h1>simSphere</h1>
     <p class="sub">Stone sphere lit by four rainbow-cycling spotlights (A–D, clockwise). Drag to orbit, scroll to zoom.</p>
@@ -262,6 +266,81 @@ ringImg.width = ringImg.height = CP_S;
   }
 }
 
+// --- RGB-coordinate widget: the rainbow path inside the RGB cube,
+// projected isometrically onto 2D (R right-down, G up, B left-down) ---
+const rgbCanvas = document.getElementById('rgbpath');
+const rgbCtx = rgbCanvas.getContext('2d');
+const RP_S = 280, RP_K = 95;
+const srgb = new THREE.Color();
+function rgbProj(c) {
+  srgb.copy(c).convertLinearToSRGB();
+  return [
+    RP_S / 2 + 0.866 * (srgb.r - srgb.b) * RP_K,
+    RP_S / 2 + (0.5 * (srgb.r + srgb.b) - srgb.g) * RP_K,
+  ];
+}
+
+// Static background: cube edges + the rainbow path polyline.
+const rgbImg = document.createElement('canvas');
+rgbImg.width = rgbImg.height = RP_S;
+{
+  const ctx = rgbImg.getContext('2d');
+  const corner = (r, g, b) => rgbProj(tmp.setRGB(r, g, b)); // already linear-ish; only used for geometry
+  // convertLinearToSRGB maps 0→0 and 1→1, so cube corners project exactly.
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 8; i++) {
+    const a = [i & 1, (i >> 1) & 1, (i >> 2) & 1];
+    for (let d = 0; d < 3; d++) {
+      if (a[d] === 0) {
+        const b = a.slice(); b[d] = 1;
+        ctx.beginPath();
+        ctx.moveTo(...corner(...a));
+        ctx.lineTo(...corner(...b));
+        ctx.stroke();
+      }
+    }
+  }
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = '11px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  const lr = corner(1, 0, 0), lg = corner(0, 1, 0), lb = corner(0, 0, 1);
+  ctx.fillText('R', lr[0] + 10, lr[1] + 4);
+  ctx.fillText('G', lg[0], lg[1] - 6);
+  ctx.fillText('B', lb[0] - 10, lb[1] + 4);
+  ctx.lineWidth = 3;
+  const N = 360;
+  for (let i = 0; i < N; i++) {
+    const p0 = rgbProj(pathColor(i / N, tmp));
+    const p1 = rgbProj(pathColor(((i + 1) % N) / N, tmp));
+    ctx.strokeStyle = '#' + pathColor((i + 0.5) / N, tmp).getHexString();
+    ctx.beginPath();
+    ctx.moveTo(...p0);
+    ctx.lineTo(...p1);
+    ctx.stroke();
+  }
+}
+
+function drawRGBPath(us) {
+  rgbCtx.clearRect(0, 0, RP_S, RP_S);
+  rgbCtx.drawImage(rgbImg, 0, 0);
+  rgbCtx.font = 'bold 14px system-ui, sans-serif';
+  rgbCtx.textAlign = 'center';
+  rgbCtx.textBaseline = 'middle';
+  us.forEach((u, i) => {
+    const [x, y] = rgbProj(pathColor(u, tmp));
+    rgbCtx.beginPath();
+    rgbCtx.arc(x, y, 13, 0, 2 * Math.PI);
+    rgbCtx.fillStyle = '#' + tmp.getHexString();
+    rgbCtx.fill();
+    rgbCtx.lineWidth = 2;
+    rgbCtx.strokeStyle = '#fff';
+    rgbCtx.stroke();
+    rgbCtx.fillStyle = '#fff';
+    rgbCtx.fillText('ABCD'[i], x, y);
+  });
+}
+
 function drawColorPath(us) {
   cpCtx.clearRect(0, 0, CP_S, CP_S);
   cpCtx.drawImage(ringImg, 0, 0);
@@ -302,6 +381,7 @@ function animate() {
     return u;
   });
   drawColorPath(us);
+  drawRGBPath(us);
   controls.update();
   renderer.render(scene, camera);
 }

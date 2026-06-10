@@ -80,4 +80,9 @@ Write a single, static, responsive HTML page that simulates a 3D scene of a ligh
 * Light **D** starts `6s` later.
 
 
+## 🌈 Spotlight Color Space Widgets
+
 * **Color Space Path:** Add a widget on floating on top of the simulation plan showing how each light A, B, C, and D traverse through the color space.
+
+* **RGB Color Coordinate Path:** Widget on floating on top of the simulation plan showing how each light A, B, C, and D as dots traverse through the RGB color space in a 2D coordinate
+
