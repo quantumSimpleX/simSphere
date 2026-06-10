@@ -72,7 +72,7 @@
     </div>
     <div class="ctl">
       <div class="row"><label for="delay">Phase delay</label><output id="delay-v"></output></div>
-      <input type="range" id="delay" min="0" max="24" step="1" value="2">
+      <input type="range" id="delay" min="0" max="49" step="1" value="5">
     </div>
 
     <h2>Light &amp; Beam</h2>
@@ -129,16 +129,16 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 const P = {
   width: 4, length: 5, diameter: 2,
   ambient: 0.1, brightness: 1, beam: 55, aim: 20, heightPct: 10,
-  speedIdx: 16, delayIdx: 2,
+  speedIdx: 16, delayIdx: 5,
 };
 
 // 25-step log scale: step 0 = frozen, steps 1–24 span 0.01–1 Hz.
 function freq() {
   return P.speedIdx === 0 ? 0 : Math.pow(10, -2 + 2 * (P.speedIdx - 1) / 23);
 }
-// 25 linear steps over 0–3 s.
+// 50 linear steps over 0–3 s.
 function delay() {
-  return P.delayIdx * 3 / 24;
+  return P.delayIdx * 3 / 49;
 }
 
 const container = document.getElementById('scene');

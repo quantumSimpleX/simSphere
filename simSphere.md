@@ -52,11 +52,7 @@ Write a single, static, responsive HTML page that simulates a 3D scene of a ligh
 * **Cycle Speed:** Controls the rainbow cycling frequency in Hertz using **25 steps on a logarithmic scale**. Range: `0 Hz` (static/frozen) to `1 Hz` (1 full cycle per second). *(Default: 0.2 Hz)* 
 
 
-* **Phase Delay:** Controls the delay between successive lights using **25 steps**. Range: `0 seconds` (perfectly synchronous) to `3 seconds`. *(Default: 0.3 seconds)* 
-
-
-* **Pause/Resume:** Clicking/tapping on the scene or pressing the `space` key toggles between pausing and resuming the rainbow cycling.
-
+* **Phase Delay:** Controls the delay between successive lights using **50 steps**. Range: `0 seconds` (perfectly synchronous) to `3 seconds`. *(Default: 0.3 seconds)* 
 
 
 ---
