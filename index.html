@@ -464,8 +464,8 @@ function updateLegend() {
       : '<b>Tap</b> to pause &nbsp;•&nbsp; <b>Drag</b> to rotate &nbsp;•&nbsp; <b>2 fingers</b> to pan &amp; zoom';
   } else {
     legend.innerHTML = paused
-      ? '⏸ Paused — <b>click</b> the scene or press <b>Space</b> to resume'
-      : '<b>Click</b> the scene or press <b>Space</b> to pause &nbsp;•&nbsp; <b>Drag</b> to orbit &nbsp;•&nbsp; <b>Scroll</b> to zoom';
+      ? '⏸ Paused — <b>click</b> or <b>Space</b> to resume'
+      : '<b>Click</b> or <b>Space</b> to pause &nbsp;•&nbsp; <b>Left-click + drag</b> to rotate &nbsp;•&nbsp; <b>Right-click + drag</b> to pan &nbsp;•&nbsp; <b>Scroll</b> to zoom';
   }
 }
 function togglePause() {
@@ -480,9 +480,12 @@ addEventListener('keydown', e => {
   }
 });
 let downAt = null;
-renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerdown', e => {
+  // Only the left button (or a touch) can start a pause toggle.
+  downAt = e.button === 0 ? [e.clientX, e.clientY] : null;
+});
 renderer.domElement.addEventListener('pointerup', e => {
-  // Only a click (not an orbit drag) toggles pause.
+  // Only a click/tap (not a rotate or pan drag) toggles pause.
   if (downAt && Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) < 5) togglePause();
   downAt = null;
 });
