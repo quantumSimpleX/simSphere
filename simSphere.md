@@ -90,3 +90,6 @@ Write a single, static, responsive HTML page that simulates a 3D scene of a ligh
 
 * **RGB Color Coordinate Path:** Widget on floating on top of the simulation plan showing how each light A, B, C, and D as dots traverse through the 2D CIE chromaticity diagram.
 
+
+* **Legend:** Display a legend at the bottom of the simulation telling the user they can click the mouse or press `p` to pause/resume the simulation, along with any other relevant usage notes (e.g., drag to orbit, scroll to zoom). The legend should reflect the current paused/running state.
+

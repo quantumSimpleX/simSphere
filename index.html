@@ -18,6 +18,13 @@
     position: absolute; top: 160px; left: 10px; width: 140px; height: 140px;
     pointer-events: none;
   }
+  #legend {
+    position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+    max-width: 92%; padding: 6px 14px; border-radius: 8px;
+    background: rgba(0, 0, 0, 0.55); font-size: 12px; color: #ddd;
+    text-align: center; pointer-events: none; white-space: nowrap;
+  }
+  #legend b { color: #ffd479; }
   #scene canvas { display: block; }
   #panel {
     width: 300px; flex: none; overflow-y: auto; padding: 16px;
@@ -42,7 +49,7 @@
 </head>
 <body>
 <div id="app">
-  <div id="scene"><canvas id="colorpath" width="280" height="280"></canvas><canvas id="rgbpath" width="280" height="280"></canvas></div>
+  <div id="scene"><canvas id="colorpath" width="280" height="280"></canvas><canvas id="rgbpath" width="280" height="280"></canvas><div id="legend"></div></div>
   <div id="panel">
     <h1>simSphere</h1>
     <p class="sub">Stone sphere lit by four rainbow-cycling spotlights (A–D, clockwise). Drag to orbit, scroll to zoom. Click the scene or press P to pause/resume the color cycling.</p>
@@ -239,10 +246,9 @@ const REF_LUM = 0.18;
 const BASE_INTENSITY = 14; // brightness 1 ≈ an 800 lm spotlight at this scene scale
 const tmp = new THREE.Color();
 
-// Color at position u ∈ [0,1) along the rainbow loop (7 equal segments).
 // Closed Catmull-Rom spline through the key colors, so the color velocity
 // is continuous at every key — no visible "corner" at indigo/violet.
-function pathColor(u, target) {
+function splineColor(u, target) {
   const s = u * 7, seg = Math.floor(s) % 7, t = s - Math.floor(s);
   const p0 = KEYS[(seg + 6) % 7], p1 = KEYS[seg];
   const p2 = KEYS[(seg + 1) % 7], p3 = KEYS[(seg + 2) % 7];
@@ -256,6 +262,46 @@ function pathColor(u, target) {
     cr(p0.g, p1.g, p2.g, p3.g),
     cr(p0.b, p1.b, p2.b, p3.b)
   );
+}
+
+const lumOf = c => c.r * 0.2126 + c.g * 0.7152 + c.b * 0.0722;
+
+// Equal time per spline segment makes short color hops (blue→indigo) crawl
+// and long ones (violet→red) rush, which reads as a jump. Reparameterize by
+// arc length so the perceived color speed is constant: the lookup table maps
+// uniform progress to spline position, with distances measured in
+// gamma-encoded space on luminance-normalized colors (what the eye sees).
+const LUT_N = 1024;
+const uLUT = new Float32Array(LUT_N + 1);
+{
+  const N = 4096;
+  const cum = new Float32Array(N + 1);
+  const a = new THREE.Color(), b = new THREE.Color();
+  const sample = (i, c) => {
+    splineColor((i % N) / N, c);
+    c.multiplyScalar(REF_LUM / Math.max(lumOf(c), 0.005));
+    c.convertLinearToSRGB();
+  };
+  sample(0, a);
+  for (let i = 1; i <= N; i++) {
+    sample(i, b);
+    cum[i] = cum[i - 1] + Math.hypot(b.r - a.r, b.g - a.g, b.b - a.b);
+    a.copy(b);
+  }
+  let j = 0;
+  for (let k = 0; k <= LUT_N; k++) {
+    const goal = (k / LUT_N) * cum[N];
+    while (j < N - 1 && cum[j + 1] < goal) j++;
+    const f = cum[j + 1] === cum[j] ? 0 : (goal - cum[j]) / (cum[j + 1] - cum[j]);
+    uLUT[k] = (j + f) / N;
+  }
+}
+
+// Color at uniform progress u ∈ [0,1) along the rainbow loop.
+function pathColor(u, target) {
+  const p = u * LUT_N, k = Math.floor(p);
+  const s = uLUT[k] + (uLUT[Math.min(k + 1, LUT_N)] - uLUT[k]) * (p - k);
+  return splineColor(s % 1, target);
 }
 
 // --- Color-path widget: the rainbow loop as a ring, with markers A–D ---
@@ -398,14 +444,25 @@ function drawColorPath(us) {
 // The animation clock only advances while unpaused, so colors freeze in place.
 let paused = false;
 let animTime = 0;
+const legend = document.getElementById('legend');
+function updateLegend() {
+  legend.innerHTML = paused
+    ? '⏸ Paused — <b>click</b> the scene or press <b>P</b> to resume'
+    : '<b>Click</b> the scene or press <b>P</b> to pause &nbsp;•&nbsp; <b>Drag</b> to orbit &nbsp;•&nbsp; <b>Scroll</b> to zoom';
+}
+function togglePause() {
+  paused = !paused;
+  updateLegend();
+}
+updateLegend();
 addEventListener('keydown', e => {
-  if (e.key === 'p' || e.key === 'P') paused = !paused;
+  if (e.key === 'p' || e.key === 'P') togglePause();
 });
 let downAt = null;
 renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
 renderer.domElement.addEventListener('pointerup', e => {
   // Only a click (not an orbit drag) toggles pause.
-  if (downAt && Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) < 5) paused = !paused;
+  if (downAt && Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) < 5) togglePause();
   downAt = null;
 });
 
