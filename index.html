@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>simSphere — 3D Light &amp; Sphere Simulation</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body { background: #0d0d10; color: #d8d8dc; font-family: system-ui, -apple-system, sans-serif; }
+  #app { display: flex; height: 100%; }
+  #scene { flex: 1; min-width: 0; }
+  #scene canvas { display: block; }
+  #panel {
+    width: 300px; flex: none; overflow-y: auto; padding: 16px;
+    background: #1a1a1f; border-left: 1px solid #2e2e36;
+  }
+  #panel h1 { font-size: 17px; margin-bottom: 2px; }
+  #panel p.sub { font-size: 12px; color: #8a8a93; margin-bottom: 14px; }
+  #panel h2 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: #9a9aa4; margin: 16px 0 8px; border-bottom: 1px solid #2e2e36; padding-bottom: 4px;
+  }
+  .ctl { margin-bottom: 10px; }
+  .ctl .row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 3px; }
+  .ctl .row output { color: #ffd479; font-variant-numeric: tabular-nums; }
+  .ctl input[type=range] { width: 100%; accent-color: #ffb84d; }
+  @media (max-width: 700px) {
+    #app { flex-direction: column; }
+    #scene { height: 52vh; flex: none; }
+    #panel { width: 100%; flex: 1; border-left: none; border-top: 1px solid #2e2e36; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="scene"></div>
+  <div id="panel">
+    <h1>simSphere</h1>
+    <p class="sub">Stone sphere lit by four rainbow-cycling spotlights (A–D, clockwise). Drag to orbit, scroll to zoom.</p>
+
+    <h2>Geometry</h2>
+    <div class="ctl">
+      <div class="row"><label for="width">Landscape width</label><output id="width-v"></output></div>
+      <input type="range" id="width" min="1" max="6" step="0.1" value="4">
+    </div>
+    <div class="ctl">
+      <div class="row"><label for="length">Landscape length</label><output id="length-v"></output></div>
+      <input type="range" id="length" min="1" max="6" step="0.1" value="5">
+    </div>
+    <div class="ctl">
+      <div class="row"><label for="diameter">Sphere diameter</label><output id="diameter-v"></output></div>
+      <input type="range" id="diameter" min="1" max="4" step="0.1" value="2">
+    </div>
+
+    <h2>Light &amp; Beam</h2>
+    <div class="ctl">
+      <div class="row"><label for="ambient">Ambient light</label><output id="ambient-v"></output></div>
+      <input type="range" id="ambient" min="0" max="1" step="0.01" value="0.1">
+    </div>
+    <div class="ctl">
+      <div class="row"><label for="brightness">Spotlight brightness</label><output id="brightness-v"></output></div>
+      <input type="range" id="brightness" min="0" max="1" step="0.01" value="1">
+    </div>
+    <div class="ctl">
+      <div class="row"><label for="beam">Beam angle (spread)</label><output id="beam-v"></output></div>
+      <input type="range" id="beam" min="5" max="90" step="1" value="55">
+    </div>
+    <div class="ctl">
+      <div class="row"><label for="aim">Angular aim (tilt)</label><output id="aim-v"></output></div>
+      <input type="range" id="aim" min="-5" max="45" step="1" value="20">
+    </div>
+    <div class="ctl">
+      <div class="row"><label for="heightPct">Spotlight height</label><output id="heightPct-v"></output></div>
+      <input type="range" id="heightPct" min="0" max="100" step="1" value="10">
+    </div>
+
+    <h2>Animation</h2>
+    <div class="ctl">
+      <div class="row"><label for="speed">Cycle speed</label><output id="speed-v"></output></div>
+      <input type="range" id="speed" min="0" max="24" step="1" value="16">
+    </div>
+    <div class="ctl">
+      <div class="row"><label for="delay">Phase delay</label><output id="delay-v"></output></div>
+      <input type="range" id="delay" min="0" max="24" step="1" value="2">
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// All distances are in feet (1 world unit = 1 ft).
+const P = {
+  width: 4, length: 5, diameter: 2,
+  ambient: 0.1, brightness: 1, beam: 55, aim: 20, heightPct: 10,
+  speedIdx: 16, delayIdx: 2,
+};
+
+// 25-step log scale: step 0 = frozen, steps 1–24 span 0.01–1 Hz.
+function freq() {
+  return P.speedIdx === 0 ? 0 : Math.pow(10, -2 + 2 * (P.speedIdx - 1) / 23);
+}
+// 25 linear steps over 0–3 s.
+function delay() {
+  return P.delayIdx * 3 / 24;
+}
+
+const container = document.getElementById('scene');
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0d0d10);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
+camera.position.set(5.5, 4.5, 7.5);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0.8, 0);
+controls.enableDamping = true;
+controls.maxPolarAngle = Math.PI * 0.52;
+
+const ambient = new THREE.AmbientLight(0xffffff, P.ambient * 2);
+scene.add(ambient);
+
+// Speckled canvas texture gives the sphere a rough stone surface.
+function makeNoiseTexture(size) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+  const img = ctx.createImageData(size, size);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const v = 150 + Math.random() * 105;
+    img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+    img.data[i + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+}
+const noise = makeNoiseTexture(256);
+
+const ground = new THREE.Mesh(
+  new THREE.BoxGeometry(1, 0.2, 1),
+  new THREE.MeshStandardMaterial({ color: 0x6e6f66, roughness: 0.95 })
+);
+ground.position.y = -0.1;
+ground.receiveShadow = true;
+scene.add(ground);
+
+const sphere = new THREE.Mesh(
+  new THREE.SphereGeometry(0.5, 96, 48),
+  new THREE.MeshStandardMaterial({
+    color: 0xc8c8c8, roughness: 0.92,
+    bumpMap: noise, bumpScale: 0.02,
+  })
+);
+sphere.castShadow = true;
+sphere.receiveShadow = true;
+scene.add(sphere);
+
+// Lights A–D, clockwise around the landscape corners.
+const CORNERS = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+const lights = CORNERS.map(([sx, sz]) => {
+  const spot = new THREE.SpotLight(0xff0000, 0, 0, 1, 0.35, 2);
+  spot.castShadow = true;
+  spot.shadow.mapSize.set(1024, 1024);
+  spot.shadow.bias = -0.0002;
+  spot.shadow.normalBias = 0.02;
+  const target = new THREE.Object3D();
+  spot.target = target;
+  const marker = new THREE.Mesh(
+    new THREE.SphereGeometry(0.06, 16, 8),
+    new THREE.MeshBasicMaterial({ color: 0xff0000 })
+  );
+  marker.material.toneMapped = false;
+  scene.add(spot, target, marker);
+  return { spot, target, marker, sx, sz };
+});
+
+function layout() {
+  ground.scale.set(P.width, 1, P.length);
+  sphere.scale.setScalar(P.diameter);
+  sphere.position.y = P.diameter / 2;
+  const h = (P.heightPct / 100) * (P.diameter / 2);
+  const tilt = THREE.MathUtils.degToRad(P.aim);
+  for (const L of lights) {
+    const x = L.sx * P.width / 2, z = L.sz * P.length / 2;
+    L.spot.position.set(x, h, z);
+    L.marker.position.set(x, h, z);
+    // Aim horizontally toward the center, then tilt up/down by the aim angle.
+    const hl = Math.hypot(x, z);
+    L.target.position.set(
+      x + (-x / hl) * Math.cos(tilt) * 3,
+      h + Math.sin(tilt) * 3,
+      z + (-z / hl) * Math.cos(tilt) * 3
+    );
+    L.spot.angle = THREE.MathUtils.degToRad(P.beam) / 2;
+  }
+}
+
+// Rainbow key colors (sRGB), converted to linear for lighting.
+const KEYS = [
+  [1, 0, 0],        // red
+  [1, 0.5, 0],      // orange
+  [1, 1, 0],        // yellow
+  [0, 1, 0],        // green
+  [0, 0, 1],        // blue
+  [0.29, 0, 0.51],  // indigo
+  [0.58, 0, 0.83],  // violet
+].map(([r, g, b]) => new THREE.Color().setRGB(r, g, b, THREE.SRGBColorSpace));
+
+// Perceived-luminance compensation: light intensity is scaled by
+// REF_LUM / luminance(color) so e.g. yellow doesn't look brighter than blue.
+const REF_LUM = 0.18;
+const BASE_INTENSITY = 14; // brightness 1 ≈ an 800 lm spotlight at this scene scale
+const tmp = new THREE.Color();
+
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const t = clock.getElapsedTime();
+  const f = freq(), d = delay();
+  lights.forEach((L, i) => {
+    // Staggered starts: light i begins i × delay seconds after light A.
+    const tt = Math.max(0, t - i * d);
+    const u = f === 0 ? 0 : (tt * f) % 1;
+    // 7 equal segments: R→O→Y→G→B→I→V→(wrap to R), so the violet→red
+    // blend takes the same time as any other transition.
+    const s = u * 7, seg = Math.floor(s);
+    tmp.copy(KEYS[seg]).lerp(KEYS[(seg + 1) % 7], s - seg);
+    const lum = tmp.r * 0.2126 + tmp.g * 0.7152 + tmp.b * 0.0722;
+    L.spot.color.copy(tmp);
+    L.spot.intensity = P.brightness * BASE_INTENSITY * (REF_LUM / Math.max(lum, 0.03));
+    L.marker.material.color.copy(tmp);
+  });
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+function resize() {
+  const w = container.clientWidth, h = container.clientHeight;
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(container);
+
+// ---- UI wiring ----
+function bind(id, key, fmt, after) {
+  const el = document.getElementById(id);
+  const out = document.getElementById(id + '-v');
+  const apply = () => {
+    P[key] = parseFloat(el.value);
+    out.textContent = fmt(P[key]);
+    if (after) after();
+  };
+  el.addEventListener('input', apply);
+  apply();
+}
+
+const fmtFt = v => v.toFixed(1) + ' ft';
+
+// Sphere diameter may not exceed the shorter landscape side.
+function clampDiameter() {
+  const el = document.getElementById('diameter');
+  const max = Math.min(P.width, P.length);
+  el.max = max;
+  if (parseFloat(el.value) > max) el.value = max;
+  P.diameter = parseFloat(el.value);
+  document.getElementById('diameter-v').textContent = fmtFt(P.diameter);
+  layout();
+}
+
+bind('width', 'width', fmtFt, clampDiameter);
+bind('length', 'length', fmtFt, clampDiameter);
+bind('diameter', 'diameter', fmtFt, layout);
+bind('ambient', 'ambient', v => v.toFixed(2), () => { ambient.intensity = P.ambient * 2; });
+bind('brightness', 'brightness', v => Math.round(v * 800) + ' lm');
+bind('beam', 'beam', v => v + '°', layout);
+bind('aim', 'aim', v => v + '°', layout);
+bind('heightPct', 'heightPct', v => v + '%', layout);
+bind('speed', 'speedIdx', () => {
+  const f = freq();
+  return f === 0 ? '0 Hz (static)' : (f < 0.1 ? f.toFixed(3) : f.toFixed(2)) + ' Hz';
+});
+bind('delay', 'delayIdx', () => parseFloat(delay().toFixed(3)) + ' s');
+
+// Size the canvas from the laid-out container *before* the first render so
+// the sphere is perfectly round from frame one.
+resize();
+layout();
+animate();
+</script>
+</body>
+</html>
