@@ -55,6 +55,9 @@ Write a single, static, responsive HTML page that simulates a 3D scene of a ligh
 * **Phase Delay:** Controls the delay between successive lights using **25 steps**. Range: `0 seconds` (perfectly synchronous) to `3 seconds`. *(Default: 0.3 seconds)* 
 
 
+* **Pause/Resume:** Clicking the mouse on the scene or pressing the `p` key toggles between pausing and resuming the rainbow cycling.
+
+
 
 ---
 
@@ -84,5 +87,6 @@ Write a single, static, responsive HTML page that simulates a 3D scene of a ligh
 
 * **Color Space Path:** Add a widget on floating on top of the simulation plan showing how each light A, B, C, and D traverse through the color space.
 
-* **RGB Color Coordinate Path:** Widget on floating on top of the simulation plan showing how each light A, B, C, and D as dots traverse through the RGB color space in a 2D coordinate
+
+* **RGB Color Coordinate Path:** Widget on floating on top of the simulation plan showing how each light A, B, C, and D as dots traverse through the 2D CIE chromaticity diagram.
 

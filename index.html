@@ -45,7 +45,7 @@
   <div id="scene"><canvas id="colorpath" width="280" height="280"></canvas><canvas id="rgbpath" width="280" height="280"></canvas></div>
   <div id="panel">
     <h1>simSphere</h1>
-    <p class="sub">Stone sphere lit by four rainbow-cycling spotlights (A–D, clockwise). Drag to orbit, scroll to zoom.</p>
+    <p class="sub">Stone sphere lit by four rainbow-cycling spotlights (A–D, clockwise). Drag to orbit, scroll to zoom. Click the scene or press P to pause/resume the color cycling.</p>
 
     <h2>Geometry</h2>
     <div class="ctl">
@@ -266,69 +266,88 @@ ringImg.width = ringImg.height = CP_S;
   }
 }
 
-// --- RGB-coordinate widget: the rainbow path inside the RGB cube,
-// projected isometrically onto 2D (R right-down, G up, B left-down) ---
+// --- CIE 1931 chromaticity widget: lights A–D as dots on the xy diagram ---
 const rgbCanvas = document.getElementById('rgbpath');
 const rgbCtx = rgbCanvas.getContext('2d');
-const RP_S = 280, RP_K = 95;
-const srgb = new THREE.Color();
-function rgbProj(c) {
-  srgb.copy(c).convertLinearToSRGB();
-  return [
-    RP_S / 2 + 0.866 * (srgb.r - srgb.b) * RP_K,
-    RP_S / 2 + (0.5 * (srgb.r + srgb.b) - srgb.g) * RP_K,
-  ];
-}
+const RP_S = 280;
+// Spectral locus, CIE 1931 2° observer, 380–700 nm in 10 nm steps (x, y).
+const LOCUS = [
+  [.1741,.0050],[.1738,.0049],[.1733,.0048],[.1726,.0048],[.1714,.0051],
+  [.1689,.0069],[.1644,.0109],[.1566,.0177],[.1440,.0297],[.1241,.0578],
+  [.0913,.1327],[.0454,.2950],[.0082,.5384],[.0139,.7502],[.0743,.8338],
+  [.1547,.8059],[.2296,.7543],[.3016,.6923],[.3731,.6245],[.4441,.5547],
+  [.5125,.4866],[.5752,.4242],[.6270,.3725],[.6658,.3340],[.6915,.3083],
+  [.7079,.2920],[.7190,.2809],[.7260,.2740],[.7300,.2700],[.7320,.2680],
+  [.7334,.2666],[.7344,.2656],[.7347,.2653],
+];
+// Map chromaticity (x ∈ [0,0.8], y ∈ [0,0.9]) to canvas pixels.
+const cieX = x => 14 + (x / 0.8) * 252;
+const cieY = y => RP_S - 14 - (y / 0.9) * 252;
 
-// Static background: cube edges + the rainbow path polyline.
-const rgbImg = document.createElement('canvas');
-rgbImg.width = rgbImg.height = RP_S;
-{
-  const ctx = rgbImg.getContext('2d');
-  const corner = (r, g, b) => rgbProj(tmp.setRGB(r, g, b)); // already linear-ish; only used for geometry
-  // convertLinearToSRGB maps 0→0 and 1→1, so cube corners project exactly.
-  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-  ctx.lineWidth = 1;
-  for (let i = 0; i < 8; i++) {
-    const a = [i & 1, (i >> 1) & 1, (i >> 2) & 1];
-    for (let d = 0; d < 3; d++) {
-      if (a[d] === 0) {
-        const b = a.slice(); b[d] = 1;
-        ctx.beginPath();
-        ctx.moveTo(...corner(...a));
-        ctx.lineTo(...corner(...b));
-        ctx.stroke();
-      }
+function insideLocus(x, y) {
+  let inside = false;
+  for (let i = 0, j = LOCUS.length - 1; i < LOCUS.length; j = i++) {
+    const [xi, yi] = LOCUS[i], [xj, yj] = LOCUS[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
+      inside = !inside;
     }
   }
-  ctx.fillStyle = 'rgba(255,255,255,0.5)';
-  ctx.font = '11px system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  const lr = corner(1, 0, 0), lg = corner(0, 1, 0), lb = corner(0, 0, 1);
-  ctx.fillText('R', lr[0] + 10, lr[1] + 4);
-  ctx.fillText('G', lg[0], lg[1] - 6);
-  ctx.fillText('B', lb[0] - 10, lb[1] + 4);
-  ctx.lineWidth = 3;
-  const N = 360;
-  for (let i = 0; i < N; i++) {
-    const p0 = rgbProj(pathColor(i / N, tmp));
-    const p1 = rgbProj(pathColor(((i + 1) % N) / N, tmp));
-    ctx.strokeStyle = '#' + pathColor((i + 0.5) / N, tmp).getHexString();
-    ctx.beginPath();
-    ctx.moveTo(...p0);
-    ctx.lineTo(...p1);
-    ctx.stroke();
-  }
+  return inside;
 }
 
-function drawRGBPath(us) {
+// Linear sRGB → CIE xy chromaticity.
+function chromaticity(c) {
+  const X = 0.4124 * c.r + 0.3576 * c.g + 0.1805 * c.b;
+  const Y = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+  const Z = 0.0193 * c.r + 0.1192 * c.g + 0.9505 * c.b;
+  const s = X + Y + Z;
+  return [cieX(X / s), cieY(Y / s)];
+}
+
+// Static background: the filled horseshoe, drawn once per pixel.
+const cieImg = document.createElement('canvas');
+cieImg.width = cieImg.height = RP_S;
+{
+  const ctx = cieImg.getContext('2d');
+  const img = ctx.createImageData(RP_S, RP_S);
+  const gamma = v => (v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055);
+  for (let py = 0; py < RP_S; py++) {
+    const y = ((RP_S - 14 - py) / 252) * 0.9;
+    for (let px = 0; px < RP_S; px++) {
+      const x = ((px - 14) / 252) * 0.8;
+      if (y <= 0.001 || !insideLocus(x, y)) continue;
+      // xyY (Y=1) → XYZ → linear sRGB, normalized to fit the gamut.
+      const X = x / y, Z = (1 - x - y) / y;
+      let r = 3.2406 * X - 1.5372 - 0.4986 * Z;
+      let g = -0.9689 * X + 1.8758 + 0.0415 * Z;
+      let b = 0.0557 * X - 0.2040 + 1.0570 * Z;
+      r = Math.max(r, 0); g = Math.max(g, 0); b = Math.max(b, 0);
+      const m = Math.max(r, g, b);
+      const o = (py * RP_S + px) * 4;
+      img.data[o] = gamma(r / m) * 255;
+      img.data[o + 1] = gamma(g / m) * 255;
+      img.data[o + 2] = gamma(b / m) * 255;
+      img.data[o + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  // Outline the locus and the purple line.
+  ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  LOCUS.forEach(([x, y], i) => i ? ctx.lineTo(cieX(x), cieY(y)) : ctx.moveTo(cieX(x), cieY(y)));
+  ctx.closePath();
+  ctx.stroke();
+}
+
+function drawCIEPath(us) {
   rgbCtx.clearRect(0, 0, RP_S, RP_S);
-  rgbCtx.drawImage(rgbImg, 0, 0);
+  rgbCtx.drawImage(cieImg, 0, 0);
   rgbCtx.font = 'bold 14px system-ui, sans-serif';
   rgbCtx.textAlign = 'center';
   rgbCtx.textBaseline = 'middle';
   us.forEach((u, i) => {
-    const [x, y] = rgbProj(pathColor(u, tmp));
+    const [x, y] = chromaticity(pathColor(u, tmp));
     rgbCtx.beginPath();
     rgbCtx.arc(x, y, 13, 0, 2 * Math.PI);
     rgbCtx.fillStyle = '#' + tmp.getHexString();
@@ -362,10 +381,27 @@ function drawColorPath(us) {
   });
 }
 
+// Pause/resume the rainbow cycling with a click on the scene or the P key.
+// The animation clock only advances while unpaused, so colors freeze in place.
+let paused = false;
+let animTime = 0;
+addEventListener('keydown', e => {
+  if (e.key === 'p' || e.key === 'P') paused = !paused;
+});
+let downAt = null;
+renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerup', e => {
+  // Only a click (not an orbit drag) toggles pause.
+  if (downAt && Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) < 5) paused = !paused;
+  downAt = null;
+});
+
 const clock = new THREE.Clock();
 function animate() {
   requestAnimationFrame(animate);
-  const t = clock.getElapsedTime();
+  const dt = clock.getDelta();
+  if (!paused) animTime += dt;
+  const t = animTime;
   const f = freq(), d = delay();
   const us = lights.map((L, i) => {
     // Staggered starts: light i begins i × delay seconds after light A.
@@ -381,7 +417,7 @@ function animate() {
     return u;
   });
   drawColorPath(us);
-  drawRGBPath(us);
+  drawCIEPath(us);
   controls.update();
   renderer.render(scene, camera);
 }
