@@ -65,18 +65,14 @@
     <h1>simSphere</h1>
     <p class="sub">Stone sphere lit by four rainbow-cycling spotlights (A–D, clockwise). Drag to orbit, scroll to zoom. Click/tap the scene or press Space to pause/resume the color cycling.</p>
 
-    <h2>Geometry</h2>
+    <h2>Animation</h2>
     <div class="ctl">
-      <div class="row"><label for="width">Landscape width</label><output id="width-v"></output></div>
-      <input type="range" id="width" min="1" max="6" step="0.1" value="4">
+      <div class="row"><label for="speed">Cycle speed</label><output id="speed-v"></output></div>
+      <input type="range" id="speed" min="0" max="24" step="1" value="16">
     </div>
     <div class="ctl">
-      <div class="row"><label for="length">Landscape length</label><output id="length-v"></output></div>
-      <input type="range" id="length" min="1" max="6" step="0.1" value="5">
-    </div>
-    <div class="ctl">
-      <div class="row"><label for="diameter">Sphere diameter</label><output id="diameter-v"></output></div>
-      <input type="range" id="diameter" min="1" max="4" step="0.1" value="2">
+      <div class="row"><label for="delay">Phase delay</label><output id="delay-v"></output></div>
+      <input type="range" id="delay" min="0" max="24" step="1" value="2">
     </div>
 
     <h2>Light &amp; Beam</h2>
@@ -101,14 +97,18 @@
       <input type="range" id="heightPct" min="0" max="100" step="1" value="10">
     </div>
 
-    <h2>Animation</h2>
+    <h2>Geometry</h2>
     <div class="ctl">
-      <div class="row"><label for="speed">Cycle speed</label><output id="speed-v"></output></div>
-      <input type="range" id="speed" min="0" max="24" step="1" value="16">
+      <div class="row"><label for="width">Landscape width</label><output id="width-v"></output></div>
+      <input type="range" id="width" min="1" max="6" step="0.1" value="4">
     </div>
     <div class="ctl">
-      <div class="row"><label for="delay">Phase delay</label><output id="delay-v"></output></div>
-      <input type="range" id="delay" min="0" max="24" step="1" value="2">
+      <div class="row"><label for="length">Landscape length</label><output id="length-v"></output></div>
+      <input type="range" id="length" min="1" max="6" step="0.1" value="5">
+    </div>
+    <div class="ctl">
+      <div class="row"><label for="diameter">Sphere diameter</label><output id="diameter-v"></output></div>
+      <input type="range" id="diameter" min="1" max="4" step="0.1" value="2">
     </div>
   </div>
 </div>
@@ -460,7 +460,15 @@ let animTime = 0;
 const legend = document.getElementById('legend');
 // Touch hints only when no mouse/trackpad exists at all — a touchscreen
 // laptop or Surface with a mouse attached still gets the desktop legend.
-const isTouch = !matchMedia('(any-pointer: fine)').matches;
+// Some Windows tablets misreport the media query, so also switch to the
+// desktop legend the moment real mouse movement is detected.
+let isTouch = !matchMedia('(any-pointer: fine)').matches;
+addEventListener('pointermove', function onFirstMouse(e) {
+  if (e.pointerType === 'mouse') {
+    removeEventListener('pointermove', onFirstMouse);
+    if (isTouch) { isTouch = false; updateLegend(); }
+  }
+});
 function updateLegend() {
   if (isTouch) {
     legend.innerHTML = paused
