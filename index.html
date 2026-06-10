@@ -15,8 +15,8 @@
     text-align: center; pointer-events: none;
     text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
   }
-  #title h1 { font-size: 34px; letter-spacing: 0.02em; color: #f2f2f5; }
-  #title h2 { font-size: 17px; font-weight: 400; color: #b8b8c2; margin-top: 2px; }
+  #title h1 { font-size: clamp(19px, 4.5vw, 34px); letter-spacing: 0.02em; color: #f2f2f5; }
+  #title h2 { font-size: clamp(12px, 2.6vw, 17px); font-weight: 400; color: #b8b8c2; margin-top: 2px; }
   #colorpath {
     position: absolute; top: 96px; left: 10px; width: 140px; height: 140px;
     pointer-events: none;
@@ -51,6 +51,10 @@
     #app { flex-direction: column; }
     #scene { height: 52vh; flex: none; }
     #panel { width: 100%; flex: 1; border-left: none; border-top: 1px solid #2e2e36; }
+    /* Smaller widgets, tucked into the top corners below the title. */
+    #colorpath { top: 62px; left: 8px; width: 96px; height: 96px; }
+    #rgbpath { top: 62px; left: auto; right: 8px; width: 96px; height: 96px; }
+    #legend { font-size: 11px; }
   }
 </style>
 </head>
@@ -59,7 +63,7 @@
   <div id="scene"><div id="title"><h1>Prado 22 (m&amp;m)</h1><h2>Lighting Simulator</h2></div><canvas id="colorpath" width="280" height="280"></canvas><canvas id="rgbpath" width="280" height="280"></canvas><div id="legend"></div></div>
   <div id="panel">
     <h1>simSphere</h1>
-    <p class="sub">Stone sphere lit by four rainbow-cycling spotlights (A–D, clockwise). Drag to orbit, scroll to zoom. Click the scene or press P to pause/resume the color cycling.</p>
+    <p class="sub">Stone sphere lit by four rainbow-cycling spotlights (A–D, clockwise). Drag to orbit, scroll to zoom. Click/tap the scene or press Space to pause/resume the color cycling.</p>
 
     <h2>Geometry</h2>
     <div class="ctl">
@@ -452,10 +456,17 @@ function drawColorPath(us) {
 let paused = false;
 let animTime = 0;
 const legend = document.getElementById('legend');
+const isTouch = matchMedia('(pointer: coarse)').matches;
 function updateLegend() {
-  legend.innerHTML = paused
-    ? '⏸ Paused — <b>click</b> the scene or press <b>P</b> to resume'
-    : '<b>Click</b> the scene or press <b>P</b> to pause &nbsp;•&nbsp; <b>Drag</b> to orbit &nbsp;•&nbsp; <b>Scroll</b> to zoom';
+  if (isTouch) {
+    legend.innerHTML = paused
+      ? '⏸ Paused — <b>tap</b> to resume'
+      : '<b>Tap</b> to pause &nbsp;•&nbsp; <b>Drag</b> to rotate &nbsp;•&nbsp; <b>2 fingers</b> to pan &amp; zoom';
+  } else {
+    legend.innerHTML = paused
+      ? '⏸ Paused — <b>click</b> the scene or press <b>Space</b> to resume'
+      : '<b>Click</b> the scene or press <b>Space</b> to pause &nbsp;•&nbsp; <b>Drag</b> to orbit &nbsp;•&nbsp; <b>Scroll</b> to zoom';
+  }
 }
 function togglePause() {
   paused = !paused;
@@ -463,7 +474,10 @@ function togglePause() {
 }
 updateLegend();
 addEventListener('keydown', e => {
-  if (e.key === 'p' || e.key === 'P') togglePause();
+  if (e.key === ' ') {
+    e.preventDefault(); // keep Space from scrolling or nudging focused sliders
+    togglePause();
+  }
 });
 let downAt = null;
 renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
