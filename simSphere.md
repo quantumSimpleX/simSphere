@@ -78,3 +78,6 @@ Write a single, static, responsive HTML page that simulates a 3D scene of a ligh
 * Light **B** starts `2s` later.
 * Light **C** starts `4s` later.
 * Light **D** starts `6s` later.
+
+
+* **Color Space Path:** Add a widget on floating on top of the simulation plan showing how each light A, B, C, and D traverse through the color space.

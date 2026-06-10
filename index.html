@@ -9,7 +9,11 @@
   html, body { height: 100%; }
   body { background: #0d0d10; color: #d8d8dc; font-family: system-ui, -apple-system, sans-serif; }
   #app { display: flex; height: 100%; }
-  #scene { flex: 1; min-width: 0; }
+  #scene { flex: 1; min-width: 0; position: relative; }
+  #colorpath {
+    position: absolute; top: 10px; left: 10px; width: 140px; height: 140px;
+    pointer-events: none;
+  }
   #scene canvas { display: block; }
   #panel {
     width: 300px; flex: none; overflow-y: auto; padding: 16px;
@@ -34,7 +38,7 @@
 </head>
 <body>
 <div id="app">
-  <div id="scene"></div>
+  <div id="scene"><canvas id="colorpath" width="280" height="280"></canvas></div>
   <div id="panel">
     <h1>simSphere</h1>
     <p class="sub">Stone sphere lit by four rainbow-cycling spotlights (A–D, clockwise). Drag to orbit, scroll to zoom.</p>
@@ -231,24 +235,73 @@ const REF_LUM = 0.18;
 const BASE_INTENSITY = 14; // brightness 1 ≈ an 800 lm spotlight at this scene scale
 const tmp = new THREE.Color();
 
+// Color at position u ∈ [0,1) along the rainbow loop (7 equal segments).
+function pathColor(u, target) {
+  const s = u * 7, seg = Math.floor(s) % 7;
+  return target.copy(KEYS[seg]).lerp(KEYS[(seg + 1) % 7], s - seg);
+}
+
+// --- Color-path widget: the rainbow loop as a ring, with markers A–D ---
+const cpCanvas = document.getElementById('colorpath');
+const cpCtx = cpCanvas.getContext('2d');
+const CP_S = 280, CP_C = CP_S / 2, CP_R = 110;
+
+// The ring itself never changes, so draw it once to an offscreen canvas.
+const ringImg = document.createElement('canvas');
+ringImg.width = ringImg.height = CP_S;
+{
+  const ctx = ringImg.getContext('2d');
+  ctx.lineWidth = 14;
+  for (let i = 0; i < 360; i++) {
+    const a0 = (i / 360) * 2 * Math.PI - Math.PI / 2;
+    const a1 = ((i + 1.5) / 360) * 2 * Math.PI - Math.PI / 2;
+    ctx.strokeStyle = '#' + pathColor(i / 360, tmp).getHexString();
+    ctx.beginPath();
+    ctx.arc(CP_C, CP_C, CP_R, a0, a1);
+    ctx.stroke();
+  }
+}
+
+function drawColorPath(us) {
+  cpCtx.clearRect(0, 0, CP_S, CP_S);
+  cpCtx.drawImage(ringImg, 0, 0);
+  cpCtx.font = 'bold 14px system-ui, sans-serif';
+  cpCtx.textAlign = 'center';
+  cpCtx.textBaseline = 'middle';
+  us.forEach((u, i) => {
+    const a = u * 2 * Math.PI - Math.PI / 2;
+    const x = CP_C + Math.cos(a) * CP_R, y = CP_C + Math.sin(a) * CP_R;
+    cpCtx.beginPath();
+    cpCtx.arc(x, y, 13, 0, 2 * Math.PI);
+    cpCtx.fillStyle = '#' + pathColor(u, tmp).getHexString();
+    cpCtx.fill();
+    cpCtx.lineWidth = 2;
+    cpCtx.strokeStyle = '#fff';
+    cpCtx.stroke();
+    cpCtx.fillStyle = '#fff';
+    cpCtx.fillText('ABCD'[i], x, y);
+  });
+}
+
 const clock = new THREE.Clock();
 function animate() {
   requestAnimationFrame(animate);
   const t = clock.getElapsedTime();
   const f = freq(), d = delay();
-  lights.forEach((L, i) => {
+  const us = lights.map((L, i) => {
     // Staggered starts: light i begins i × delay seconds after light A.
     const tt = Math.max(0, t - i * d);
-    const u = f === 0 ? 0 : (tt * f) % 1;
     // 7 equal segments: R→O→Y→G→B→I→V→(wrap to R), so the violet→red
     // blend takes the same time as any other transition.
-    const s = u * 7, seg = Math.floor(s);
-    tmp.copy(KEYS[seg]).lerp(KEYS[(seg + 1) % 7], s - seg);
+    const u = f === 0 ? 0 : (tt * f) % 1;
+    pathColor(u, tmp);
     const lum = tmp.r * 0.2126 + tmp.g * 0.7152 + tmp.b * 0.0722;
     L.spot.color.copy(tmp);
     L.spot.intensity = P.brightness * BASE_INTENSITY * (REF_LUM / Math.max(lum, 0.03));
     L.marker.material.color.copy(tmp);
+    return u;
   });
+  drawColorPath(us);
   controls.update();
   renderer.render(scene, camera);
 }
