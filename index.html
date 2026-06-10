@@ -240,9 +240,22 @@ const BASE_INTENSITY = 14; // brightness 1 ≈ an 800 lm spotlight at this scene
 const tmp = new THREE.Color();
 
 // Color at position u ∈ [0,1) along the rainbow loop (7 equal segments).
+// Closed Catmull-Rom spline through the key colors, so the color velocity
+// is continuous at every key — no visible "corner" at indigo/violet.
 function pathColor(u, target) {
-  const s = u * 7, seg = Math.floor(s) % 7;
-  return target.copy(KEYS[seg]).lerp(KEYS[(seg + 1) % 7], s - seg);
+  const s = u * 7, seg = Math.floor(s) % 7, t = s - Math.floor(s);
+  const p0 = KEYS[(seg + 6) % 7], p1 = KEYS[seg];
+  const p2 = KEYS[(seg + 1) % 7], p3 = KEYS[(seg + 2) % 7];
+  const cr = (a, b, c, d) => {
+    const v = 0.5 * (2 * b + (c - a) * t + (2 * a - 5 * b + 4 * c - d) * t * t
+      + (3 * b - a - 3 * c + d) * t * t * t);
+    return Math.min(1, Math.max(0, v));
+  };
+  return target.setRGB(
+    cr(p0.r, p1.r, p2.r, p3.r),
+    cr(p0.g, p1.g, p2.g, p3.g),
+    cr(p0.b, p1.b, p2.b, p3.b)
+  );
 }
 
 // --- Color-path widget: the rainbow loop as a ring, with markers A–D ---
@@ -412,7 +425,7 @@ function animate() {
     pathColor(u, tmp);
     const lum = tmp.r * 0.2126 + tmp.g * 0.7152 + tmp.b * 0.0722;
     L.spot.color.copy(tmp);
-    L.spot.intensity = P.brightness * BASE_INTENSITY * (REF_LUM / Math.max(lum, 0.03));
+    L.spot.intensity = P.brightness * BASE_INTENSITY * (REF_LUM / Math.max(lum, 0.005));
     L.marker.material.color.copy(tmp);
     return u;
   });
