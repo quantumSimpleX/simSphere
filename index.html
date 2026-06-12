@@ -81,6 +81,26 @@
       <input type="range" id="delay" min="0" max="49" step="1" value="5">
     </div>
 
+    <h2>Sphere Surface</h2>
+    <div class="ctl">
+      <div class="row"><label for="stone">Stone texture</label></div>
+      <select id="stone">
+        <option value="classic" selected>Classic gray stone</option>
+        <option value="cement">Cement / concrete</option>
+        <option value="granite">Granite (polished)</option>
+        <option value="marble">Marble (polished)</option>
+        <option value="travertine">Travertine</option>
+        <option value="limestone">Limestone</option>
+        <option value="sandstone">Sandstone</option>
+        <option value="basalt">Basalt</option>
+        <option value="slate">Slate</option>
+      </select>
+    </div>
+    <div class="ctl">
+      <div class="row"><label for="lightness">Lightness</label><output id="lightness-v"></output></div>
+      <input type="range" id="lightness" min="0" max="1" step="0.01" value="0">
+    </div>
+
     <h2>Light &amp; Beam</h2>
     <div class="ctl">
       <div class="row"><label for="ambient">Ambient light</label><output id="ambient-v"></output></div>
@@ -115,26 +135,6 @@
     <div class="ctl">
       <div class="row"><label for="diameter">Sphere diameter</label><output id="diameter-v"></output></div>
       <input type="range" id="diameter" min="1" max="4" step="0.1" value="2">
-    </div>
-
-    <h2>Sphere Surface</h2>
-    <div class="ctl">
-      <div class="row"><label for="stone">Stone texture</label></div>
-      <select id="stone">
-        <option value="classic" selected>Classic gray stone</option>
-        <option value="cement">Cement / concrete</option>
-        <option value="granite">Granite (polished)</option>
-        <option value="marble">Marble (polished)</option>
-        <option value="travertine">Travertine</option>
-        <option value="limestone">Limestone</option>
-        <option value="sandstone">Sandstone</option>
-        <option value="basalt">Basalt</option>
-        <option value="slate">Slate</option>
-      </select>
-    </div>
-    <div class="ctl">
-      <div class="row"><label for="lightness">Lightness</label><output id="lightness-v"></output></div>
-      <input type="range" id="lightness" min="0" max="1" step="0.01" value="0">
     </div>
   </div>
 </div>
