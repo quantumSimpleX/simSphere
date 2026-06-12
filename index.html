@@ -47,6 +47,12 @@
   .ctl .row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 3px; }
   .ctl .row output { color: #ffd479; font-variant-numeric: tabular-nums; }
   .ctl input[type=range] { width: 100%; accent-color: #ffb84d; }
+  .ctl select {
+    width: 100%; padding: 6px 8px; font-size: 13px;
+    background: #26262e; color: #e2e2e6;
+    border: 1px solid #3a3a44; border-radius: 6px;
+  }
+  .ctl select:focus { outline: 1px solid #ffb84d; }
   @media (max-width: 700px) {
     #app { flex-direction: column; }
     #scene { height: 58vh; flex: none; }
@@ -109,6 +115,22 @@
     <div class="ctl">
       <div class="row"><label for="diameter">Sphere diameter</label><output id="diameter-v"></output></div>
       <input type="range" id="diameter" min="1" max="4" step="0.1" value="2">
+    </div>
+
+    <h2>Sphere Surface</h2>
+    <div class="ctl">
+      <div class="row"><label for="stone">Stone texture</label></div>
+      <select id="stone">
+        <option value="classic" selected>Classic gray stone</option>
+        <option value="cement">Cement / concrete</option>
+        <option value="granite">Granite (polished)</option>
+        <option value="marble">Marble (polished)</option>
+        <option value="travertine">Travertine</option>
+        <option value="limestone">Limestone</option>
+        <option value="sandstone">Sandstone</option>
+        <option value="basalt">Basalt</option>
+        <option value="slate">Slate</option>
+      </select>
     </div>
   </div>
 </div>
@@ -201,6 +223,229 @@ const sphere = new THREE.Mesh(
 sphere.castShadow = true;
 sphere.receiveShadow = true;
 scene.add(sphere);
+
+// --- Procedural stone textures ---------------------------------------------
+// Seamless value noise: lattice values come from a shuffled permutation table
+// and lattice indices wrap at `period`, so any fBm whose base frequency is an
+// integer tiles perfectly — no visible seam where the sphere's UVs wrap.
+const PERM = new Uint8Array(256);
+{
+  let s = 1234567;
+  const rand = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 256; i++) PERM[i] = i;
+  for (let i = 255; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [PERM[i], PERM[j]] = [PERM[j], PERM[i]];
+  }
+}
+// `ch` offsets the lattice so different features (grain vs. pits vs. veins)
+// draw from decorrelated noise fields while staying periodic.
+function vnoise(x, y, period, ch = 0) {
+  const o = ch * 37;
+  const lat = (i, j) => {
+    i = (((i + o) % period) + period) % period;
+    j = (((j + o) % period) + period) % period;
+    return PERM[(PERM[i & 255] + j) & 255] / 255;
+  };
+  const xi = Math.floor(x), yi = Math.floor(y);
+  let tx = x - xi, ty = y - yi;
+  tx = tx * tx * (3 - 2 * tx);
+  ty = ty * ty * (3 - 2 * ty);
+  const a = lat(xi, yi), b = lat(xi + 1, yi);
+  const c = lat(xi, yi + 1), d = lat(xi + 1, yi + 1);
+  return a + (b - a) * tx + (c - a) * ty + (a - b - c + d) * tx * ty;
+}
+// u, v ∈ [0,1); freq must be an integer for the result to tile.
+function fbm(u, v, freq, oct, ch = 0) {
+  let sum = 0, amp = 1, norm = 0, f = freq;
+  for (let k = 0; k < oct; k++) {
+    sum += amp * vnoise(u * f, v * f, f, ch + k);
+    norm += amp; amp *= 0.5; f *= 2;
+  }
+  return sum / norm;
+}
+const mix3 = (a, b, t) => [
+  a[0] + (b[0] - a[0]) * t,
+  a[1] + (b[1] - a[1]) * t,
+  a[2] + (b[2] - a[2]) * t,
+];
+
+// Each stone: pixel(u,v) → [r,g,b ∈ 0–255, height ∈ 0–1], plus material
+// settings. `repeat` is integral in u so the texture tiles around the sphere.
+const STONES = {
+  classic: { roughness: 0.92, bumpScale: 0.02, tint: 0xc8c8c8, repeat: [1, 1] },
+  cement: {
+    roughness: 0.95, bumpScale: 0.025, tint: 0xffffff, repeat: [3, 2],
+    pixel(u, v) {
+      const mottle = fbm(u, v, 6, 3, 0);    // broad tonal patches
+      const grain = fbm(u, v, 64, 2, 3);    // fine grit
+      let t = 0.62 + (mottle - 0.5) * 0.18 + (grain - 0.5) * 0.14;
+      let h = 0.5 + (grain - 0.5) * 0.6;
+      const pit = vnoise(u * 96, v * 96, 96, 7); // small air bubbles
+      if (pit > 0.93) {
+        const k = (pit - 0.93) / 0.07;
+        t -= k * 0.25; h -= k * 0.8;
+      }
+      const g = t * 255;
+      return [g, g, g * 0.97, h];
+    },
+  },
+  granite: {
+    roughness: 0.3, bumpScale: 0.006, tint: 0xffffff, repeat: [3, 2],
+    pixel(u, v) {
+      const n1 = fbm(u, v, 28, 3, 10);
+      const n2 = fbm(u, v, 40, 2, 14);
+      const fine = vnoise(u * 128, v * 128, 128, 18);
+      let c;
+      if (n1 < 0.38) c = [42, 42, 48];          // biotite (black mica)
+      else if (n1 > 0.66) c = [216, 213, 205];  // quartz / white feldspar
+      else c = [138, 134, 132];                 // gray feldspar
+      if (n2 > 0.72 && n1 >= 0.38) c = [196, 152, 134]; // pink feldspar
+      const j = (fine - 0.5) * 22;
+      return [c[0] + j, c[1] + j, c[2] + j, 0.5 + (fine - 0.5) * 0.25];
+    },
+  },
+  marble: {
+    roughness: 0.22, bumpScale: 0.004, tint: 0xffffff, repeat: [2, 1],
+    pixel(u, v) {
+      const warp = fbm(u, v, 4, 4, 22);
+      const warp2 = fbm(u, v, 8, 3, 27);
+      const s1 = Math.sin((u * 3 + warp * 2.5) * Math.PI * 2 + warp2 * 3);
+      const vein = Math.pow(1 - Math.abs(s1), 14);          // primary veins
+      const s2 = Math.sin((v * 2 + warp2 * 3) * Math.PI * 2 + warp * 2);
+      const vein2 = Math.pow(1 - Math.abs(s2), 18) * 0.5;   // fainter cross veins
+      const cloud = (fbm(u, v, 10, 3, 31) - 0.5) * 14;
+      const c = mix3([235, 234, 230], [108, 110, 122], Math.min(1, vein + vein2));
+      return [c[0] + cloud, c[1] + cloud, c[2] + cloud, 0.5 - vein * 0.2];
+    },
+  },
+  travertine: {
+    roughness: 0.8, bumpScale: 0.04, tint: 0xffffff, repeat: [2, 1],
+    pixel(u, v) {
+      const warp = fbm(u, v, 5, 3, 40);
+      const band = Math.sin((v * 6 + warp * 1.2) * Math.PI * 2) * 0.5 + 0.5;
+      let c = mix3([224, 207, 176], [192, 164, 122], band);
+      c = mix3(c, [206, 186, 150], fbm(u, v, 24, 3, 44));
+      let h = 0.6;
+      const pit = fbm(u, v, 48, 2, 47); // the porous holes travertine is known for
+      if (pit > 0.62) {
+        const k = Math.min(1, (pit - 0.62) / 0.1);
+        c = mix3(c, [96, 78, 56], k * 0.8);
+        h -= k * 0.9;
+      }
+      return [c[0], c[1], c[2], h];
+    },
+  },
+  limestone: {
+    roughness: 0.9, bumpScale: 0.02, tint: 0xffffff, repeat: [3, 2],
+    pixel(u, v) {
+      const mottle = fbm(u, v, 8, 4, 72);
+      const grain = fbm(u, v, 70, 2, 76);
+      let c = mix3([207, 201, 184], [176, 168, 148], mottle);
+      const j = (grain - 0.5) * 22;
+      let h = 0.5 + (grain - 0.5) * 0.4;
+      const fossil = vnoise(u * 60, v * 60, 60, 79); // pale shell flecks
+      if (fossil > 0.94) {
+        const k = (fossil - 0.94) / 0.06;
+        c = mix3(c, [232, 228, 214], k);
+        h += k * 0.3;
+      }
+      return [c[0] + j, c[1] + j, c[2] + j, h];
+    },
+  },
+  sandstone: {
+    roughness: 0.95, bumpScale: 0.03, tint: 0xffffff, repeat: [2, 1],
+    pixel(u, v) {
+      const warp = fbm(u, v, 6, 3, 62);
+      const strata = Math.sin((v * 8 + warp * 0.9) * Math.PI * 2) * 0.5 + 0.5;
+      let c = mix3([209, 168, 116], [176, 128, 80], strata);
+      const grain = fbm(u, v, 90, 2, 66);
+      const stain = fbm(u, v, 12, 3, 69); // iron-oxide staining
+      c = mix3(c, [150, 96, 60], Math.max(0, stain - 0.6) * 1.5);
+      const j = (grain - 0.5) * 40;
+      return [c[0] + j, c[1] + j * 0.9, c[2] + j * 0.8,
+        0.5 + (grain - 0.5) * 0.5 + (strata - 0.5) * 0.2];
+    },
+  },
+  basalt: {
+    roughness: 0.9, bumpScale: 0.03, tint: 0xffffff, repeat: [3, 2],
+    pixel(u, v) {
+      const fine = fbm(u, v, 80, 2, 52);
+      const mottle = fbm(u, v, 10, 3, 55);
+      let t = 0.24 + (mottle - 0.5) * 0.08 + (fine - 0.5) * 0.1;
+      let h = 0.5 + (fine - 0.5) * 0.4;
+      const ves = vnoise(u * 110, v * 110, 110, 58); // gas vesicles
+      if (ves > 0.9) {
+        const k = (ves - 0.9) / 0.1;
+        t -= k * 0.12; h -= k;
+      }
+      const g = Math.max(0, t) * 255;
+      return [g, g, g * 1.06 + 4, h]; // slight blue-gray cast
+    },
+  },
+  slate: {
+    roughness: 0.6, bumpScale: 0.02, tint: 0xffffff, repeat: [2, 2],
+    pixel(u, v) {
+      // v is compressed so the noise reads as thin horizontal cleavage layers
+      const lay = fbm(u, v * 6, 10, 4, 82);
+      const sheen = fbm(u * 3, v, 8, 3, 87);
+      let c = mix3([62, 68, 78], [88, 95, 106], lay);
+      c = mix3(c, [70, 82, 80], Math.max(0, sheen - 0.55) * 1.2); // greenish patches
+      const j = (vnoise(u * 100, v * 600, 100, 90) - 0.5) * 14;
+      return [c[0] + j, c[1] + j, c[2] + j, 0.35 + lay * 0.3];
+    },
+  },
+};
+
+// Bake a stone's pixel function into color + bump CanvasTextures (cached).
+const stoneCache = new Map();
+function buildStone(key) {
+  const def = STONES[key];
+  if (!def.pixel) return { map: null, bump: noise }; // classic keeps the speckle bump
+  const S = 512;
+  const cols = document.createElement('canvas');
+  const bmps = document.createElement('canvas');
+  cols.width = cols.height = bmps.width = bmps.height = S;
+  const cctx = cols.getContext('2d'), bctx = bmps.getContext('2d');
+  const ci = cctx.createImageData(S, S), bi = bctx.createImageData(S, S);
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const [r, g, b, h] = def.pixel(x / S, y / S);
+      const o = (y * S + x) * 4;
+      ci.data[o] = Math.min(255, Math.max(0, r));
+      ci.data[o + 1] = Math.min(255, Math.max(0, g));
+      ci.data[o + 2] = Math.min(255, Math.max(0, b));
+      ci.data[o + 3] = 255;
+      bi.data[o] = bi.data[o + 1] = bi.data[o + 2] =
+        Math.min(255, Math.max(0, h * 255));
+      bi.data[o + 3] = 255;
+    }
+  }
+  cctx.putImageData(ci, 0, 0);
+  bctx.putImageData(bi, 0, 0);
+  const map = new THREE.CanvasTexture(cols);
+  map.colorSpace = THREE.SRGBColorSpace;
+  const bump = new THREE.CanvasTexture(bmps);
+  for (const t of [map, bump]) {
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(def.repeat[0], def.repeat[1]);
+    t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  }
+  return { map, bump };
+}
+
+function applyStone(key) {
+  const def = STONES[key];
+  if (!stoneCache.has(key)) stoneCache.set(key, buildStone(key));
+  const tex = stoneCache.get(key);
+  const m = sphere.material;
+  m.map = tex.map;
+  m.bumpMap = tex.bump;
+  m.bumpScale = def.bumpScale;
+  m.roughness = def.roughness;
+  m.color.set(def.tint);
+  m.needsUpdate = true;
+}
 
 // Lights A–D, clockwise around the landscape corners.
 const CORNERS = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
@@ -576,6 +821,10 @@ bind('speed', 'speedIdx', () => {
   return f === 0 ? '0 Hz (static)' : (f < 0.1 ? f.toFixed(3) : f.toFixed(2)) + ' Hz';
 });
 bind('delay', 'delayIdx', () => parseFloat(delay().toFixed(3)) + ' s');
+
+const stoneSel = document.getElementById('stone');
+stoneSel.addEventListener('change', () => applyStone(stoneSel.value));
+applyStone(stoneSel.value);
 
 // Size the canvas from the laid-out container *before* the first render so
 // the sphere is perfectly round from frame one.
