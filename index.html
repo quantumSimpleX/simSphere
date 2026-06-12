@@ -87,8 +87,8 @@
       <select id="stone">
         <option value="classic" selected>Classic gray stone</option>
         <option value="cement">Cement / concrete</option>
-        <option value="granite">Granite (polished)</option>
-        <option value="marble">Marble (polished)</option>
+        <option value="granite">Granite</option>
+        <option value="marble">Marble</option>
         <option value="travertine">Travertine</option>
         <option value="limestone">Limestone</option>
         <option value="sandstone">Sandstone</option>
@@ -295,7 +295,7 @@ const STONES = {
     },
   },
   granite: {
-    roughness: 0.3, bumpScale: 0.006, tint: 0xffffff, repeat: [3, 2],
+    roughness: 0.85, bumpScale: 0.012, tint: 0xffffff, repeat: [3, 2],
     pixel(u, v) {
       const n1 = fbm(u, v, 28, 3, 10);
       const n2 = fbm(u, v, 40, 2, 14);
@@ -310,7 +310,7 @@ const STONES = {
     },
   },
   marble: {
-    roughness: 0.22, bumpScale: 0.004, tint: 0xffffff, repeat: [2, 1],
+    roughness: 0.85, bumpScale: 0.008, tint: 0xffffff, repeat: [2, 1],
     pixel(u, v) {
       const warp = fbm(u, v, 4, 4, 22);
       const warp2 = fbm(u, v, 8, 3, 27);
@@ -389,7 +389,7 @@ const STONES = {
     },
   },
   slate: {
-    roughness: 0.6, bumpScale: 0.02, tint: 0xffffff, repeat: [2, 2],
+    roughness: 0.8, bumpScale: 0.02, tint: 0xffffff, repeat: [2, 2],
     lightDefault: 0.5, // dark stone: start half-lightened
     pixel(u, v) {
       // v is compressed so the noise reads as thin horizontal cleavage layers
