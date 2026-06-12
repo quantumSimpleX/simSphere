@@ -57,6 +57,13 @@
     #app { flex-direction: column; }
     #scene { height: 58vh; flex: none; }
     #panel { width: 100%; flex: 1; border-left: none; border-top: 1px solid #2e2e36; }
+    /* Two-column controls to save vertical space; headers and the Animation
+       sliders (which need finer control) stay full width. */
+    #panel { display: grid; grid-template-columns: 1fr 1fr; column-gap: 14px; align-content: start; }
+    #panel h1, #panel p.sub, #panel h2, #panel .ctl.wide { grid-column: 1 / -1; }
+    /* Pin sliders to the bottom of each cell so a wrapped label in one
+       column doesn't leave its neighbor's slider misaligned. */
+    #panel .ctl { display: flex; flex-direction: column; justify-content: flex-end; }
     /* Smaller widgets, tucked into the top corners below the title. */
     #colorpath { top: 62px; left: 8px; width: 96px; height: 96px; }
     #rgbpath { top: 62px; left: auto; right: 8px; width: 96px; height: 96px; }
@@ -72,11 +79,11 @@
     <p class="sub">Stone sphere lit by four rainbow-cycling spotlights (A–D, clockwise). Drag to orbit, scroll to zoom. Click/tap the scene or press Space to pause/resume the color cycling.</p>
 
     <h2>Animation</h2>
-    <div class="ctl">
+    <div class="ctl wide">
       <div class="row"><label for="speed">Cycle speed</label><output id="speed-v"></output></div>
       <input type="range" id="speed" min="0" max="24" step="1" value="16">
     </div>
-    <div class="ctl">
+    <div class="ctl wide">
       <div class="row"><label for="delay">Phase delay</label><output id="delay-v"></output></div>
       <input type="range" id="delay" min="0" max="49" step="1" value="5">
     </div>
