@@ -134,7 +134,7 @@
     </div>
     <div class="ctl">
       <div class="row"><label for="lightness">Lightness</label><output id="lightness-v"></output></div>
-      <input type="range" id="lightness" min="0" max="1" step="0.01" value="0.5">
+      <input type="range" id="lightness" min="0" max="1" step="0.01" value="0">
     </div>
   </div>
 </div>
@@ -155,7 +155,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 const P = {
   width: 4, length: 5, diameter: 2,
   ambient: 0.1, brightness: 1, beam: 55, aim: 20, heightPct: 10,
-  speedIdx: 16, delayIdx: 5, lightness: 0.5,
+  speedIdx: 16, delayIdx: 5, lightness: 0,
 };
 
 // 25-step log scale: step 0 = frozen, steps 1–24 span 0.01–1 Hz.
@@ -373,6 +373,7 @@ const STONES = {
   },
   basalt: {
     roughness: 0.9, bumpScale: 0.03, tint: 0xffffff, repeat: [3, 2],
+    lightDefault: 0.5, // dark stone: start half-lightened
     pixel(u, v) {
       const fine = fbm(u, v, 80, 2, 52);
       const mottle = fbm(u, v, 10, 3, 55);
@@ -389,6 +390,7 @@ const STONES = {
   },
   slate: {
     roughness: 0.6, bumpScale: 0.02, tint: 0xffffff, repeat: [2, 2],
+    lightDefault: 0.5, // dark stone: start half-lightened
     pixel(u, v) {
       // v is compressed so the noise reads as thin horizontal cleavage layers
       const lay = fbm(u, v * 6, 10, 4, 82);
@@ -851,7 +853,13 @@ bind('speed', 'speedIdx', () => {
 bind('delay', 'delayIdx', () => parseFloat(delay().toFixed(3)) + ' s');
 
 const stoneSel = document.getElementById('stone');
-stoneSel.addEventListener('change', () => applyStone(stoneSel.value));
+const lightEl = document.getElementById('lightness');
+stoneSel.addEventListener('change', () => {
+  applyStone(stoneSel.value);
+  // Selecting a stone resets lightness to that stone's own default.
+  lightEl.value = STONES[stoneSel.value].lightDefault || 0;
+  lightEl.dispatchEvent(new Event('input'));
+});
 applyStone(stoneSel.value);
 bind('lightness', 'lightness', v => v.toFixed(2), applyLightness);
 
