@@ -132,6 +132,10 @@
         <option value="slate">Slate</option>
       </select>
     </div>
+    <div class="ctl">
+      <div class="row"><label for="lightness">Lightness</label><output id="lightness-v"></output></div>
+      <input type="range" id="lightness" min="0" max="1" step="0.01" value="0">
+    </div>
   </div>
 </div>
 
@@ -151,7 +155,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 const P = {
   width: 4, length: 5, diameter: 2,
   ambient: 0.1, brightness: 1, beam: 55, aim: 20, heightPct: 10,
-  speedIdx: 16, delayIdx: 5,
+  speedIdx: 16, delayIdx: 5, lightness: 0,
 };
 
 // 25-step log scale: step 0 = frozen, steps 1–24 span 0.01–1 Hz.
@@ -423,7 +427,11 @@ function buildStone(key) {
   }
   cctx.putImageData(ci, 0, 0);
   bctx.putImageData(bi, 0, 0);
-  const map = new THREE.CanvasTexture(cols);
+  // The texture wraps a separate display canvas so the lightness slider can
+  // recomposite (pristine base + white overlay) without re-running the bake.
+  const disp = document.createElement('canvas');
+  disp.width = disp.height = S;
+  const map = new THREE.CanvasTexture(disp);
   map.colorSpace = THREE.SRGBColorSpace;
   const bump = new THREE.CanvasTexture(bmps);
   for (const t of [map, bump]) {
@@ -431,10 +439,12 @@ function buildStone(key) {
     t.repeat.set(def.repeat[0], def.repeat[1]);
     t.anisotropy = renderer.capabilities.getMaxAnisotropy();
   }
-  return { map, bump };
+  return { map, bump, base: cols };
 }
 
+let currentStone = 'classic';
 function applyStone(key) {
+  currentStone = key;
   const def = STONES[key];
   if (!stoneCache.has(key)) stoneCache.set(key, buildStone(key));
   const tex = stoneCache.get(key);
@@ -443,8 +453,27 @@ function applyStone(key) {
   m.bumpMap = tex.bump;
   m.bumpScale = def.bumpScale;
   m.roughness = def.roughness;
-  m.color.set(def.tint);
   m.needsUpdate = true;
+  applyLightness();
+}
+
+// Blend the stone color toward white. The slider's top end is capped at 0.92
+// so even "near white" keeps a hint of the stone's pattern.
+const WHITE = new THREE.Color(0xffffff);
+function applyLightness() {
+  const def = STONES[currentStone];
+  const tex = stoneCache.get(currentStone);
+  const L = P.lightness * 0.92;
+  if (tex.map) {
+    const c = tex.map.image, ctx = c.getContext('2d');
+    ctx.drawImage(tex.base, 0, 0);
+    if (L > 0) {
+      ctx.fillStyle = `rgba(255,255,255,${L})`;
+      ctx.fillRect(0, 0, c.width, c.height);
+    }
+    tex.map.needsUpdate = true;
+  }
+  sphere.material.color.set(def.tint).lerp(WHITE, L);
 }
 
 // Lights A–D, clockwise around the landscape corners.
@@ -825,6 +854,7 @@ bind('delay', 'delayIdx', () => parseFloat(delay().toFixed(3)) + ' s');
 const stoneSel = document.getElementById('stone');
 stoneSel.addEventListener('change', () => applyStone(stoneSel.value));
 applyStone(stoneSel.value);
+bind('lightness', 'lightness', v => Math.round(v * 100) + '%', applyLightness);
 
 // Size the canvas from the laid-out container *before* the first render so
 // the sphere is perfectly round from frame one.
