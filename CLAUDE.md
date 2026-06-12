@@ -14,6 +14,7 @@ There is no build system or test suite. To verify work, open `index.html` direct
 - **Geometry controls:** Landscape width/length 1–6 ft (default 4×5), sphere diameter 1 ft up to the shorter landscape side (default 2 ft).
 - **Light controls (all global, applied to every spotlight):** ambient 0–1 (default 0.1), brightness 0.01–1 where 1 = 800 lumens (default 1), beam angle 5°–90° (default 55°), vertical aim −5° to +45° (default 20°), spotlight height as % of sphere radius 0–100% (default 10%).
 - **Animation controls:** cycle speed 0–1 Hz on a **25-step logarithmic** slider (default 0.2 Hz); phase delay 0–3 s in 25 steps (default 0.3 s).
+- **Sphere surface (added 2026-06-12 at user request, beyond the original spec):** dropdown of procedurally generated, seamless stone textures — classic gray (default), cement, granite, marble, travertine, limestone, sandstone, basalt, slate. Textures are baked to canvas color + bump maps on first selection and cached; no external image assets. A lightness slider (0–1) blends the stone color toward white — 0 = original stone color, 1 = completely white; bump relief is unaffected. Selecting a stone resets the slider to that stone's default: 0.5 for the dark stones (basalt, slate), 0 for all others (so the classic gray default loads in its original color).
 
 ## Non-Obvious Spec Constraints
 
