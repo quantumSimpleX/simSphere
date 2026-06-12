@@ -134,7 +134,7 @@
     </div>
     <div class="ctl">
       <div class="row"><label for="lightness">Lightness</label><output id="lightness-v"></output></div>
-      <input type="range" id="lightness" min="0" max="1" step="0.01" value="0">
+      <input type="range" id="lightness" min="0" max="1" step="0.01" value="0.5">
     </div>
   </div>
 </div>
@@ -155,7 +155,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 const P = {
   width: 4, length: 5, diameter: 2,
   ambient: 0.1, brightness: 1, beam: 55, aim: 20, heightPct: 10,
-  speedIdx: 16, delayIdx: 5, lightness: 0,
+  speedIdx: 16, delayIdx: 5, lightness: 0.5,
 };
 
 // 25-step log scale: step 0 = frozen, steps 1–24 span 0.01–1 Hz.
@@ -457,13 +457,12 @@ function applyStone(key) {
   applyLightness();
 }
 
-// Blend the stone color toward white. The slider's top end is capped at 0.92
-// so even "near white" keeps a hint of the stone's pattern.
+// Blend the stone color toward white: 0 = original color, 1 = fully white.
 const WHITE = new THREE.Color(0xffffff);
 function applyLightness() {
   const def = STONES[currentStone];
   const tex = stoneCache.get(currentStone);
-  const L = P.lightness * 0.92;
+  const L = P.lightness;
   if (tex.map) {
     const c = tex.map.image, ctx = c.getContext('2d');
     ctx.drawImage(tex.base, 0, 0);
@@ -854,7 +853,7 @@ bind('delay', 'delayIdx', () => parseFloat(delay().toFixed(3)) + ' s');
 const stoneSel = document.getElementById('stone');
 stoneSel.addEventListener('change', () => applyStone(stoneSel.value));
 applyStone(stoneSel.value);
-bind('lightness', 'lightness', v => Math.round(v * 100) + '%', applyLightness);
+bind('lightness', 'lightness', v => v.toFixed(2), applyLightness);
 
 // Size the canvas from the laid-out container *before* the first render so
 // the sphere is perfectly round from frame one.
